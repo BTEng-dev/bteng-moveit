@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A whole pick-and-place, with no application Python.
+
+      bteng-moveit run examples/trees/03_pick_and_place.xml \
+                   -p examples/config/moveit_params.yaml
+
+  Every pose, joint vector, group name and collision box lives in the params
+  file; this file holds only the *order* things happen in.
+
+  The two AddCollisionObject nodes at the top are what keeps the planner from
+  driving the arm through the table.  RemoveCollisionObject at the end clears
+  the picked object out of the scene, since the real object has moved.
+
+  Caveat, and the reason Phase 6 exists: without AttachObject the grasped part
+  is not part of the robot as far as MoveIt is concerned, so the retreat plan
+  is computed as if the gripper were empty.
+-->
+<BTEng format_version="1.0" main_tree_to_execute="main">
+  <Tree ID="main">
+    <Sequence name="pick_and_place">
+
+      <IsMoveGroupReady name="move_group_up" />
+
+      <!-- 1. Publish the static scene. -->
+      <AddCollisionObject name="add_table" collision_object="{table}" />
+      <AddCollisionObject name="add_part"  collision_object="{part}" />
+
+      <!-- 2. Open the gripper and go to the pre-grasp pose. -->
+      <GripperOpen name="open_gripper"
+                   gripper_group="{gripper_group}"
+                   joint_names="{gripper_joints}"
+                   open_position="{gripper_open}" />
+
+      <PlanToPose name="plan_approach"
+                  pose="{approach_pose}"
+                  planning_group="{arm_group}"
+                  link_name="{eef_link}"
+                  trajectory="{approach_traj}" />
+      <ExecuteTrajectory name="execute_approach" trajectory="{approach_traj}" />
+
+      <!-- 3. Straight-line descent, then close on the part. -->
+      <ComputeCartesianPath name="plan_descend"
+                            planning_group="{arm_group}"
+                            link_name="{eef_link}"
+                            waypoints="{descend_waypoints}"
+                            max_step="0.005"
+                            min_fraction="0.95"
+                            trajectory="{descend_traj}"
+                            fraction="{achieved_fraction}" />
+      <ExecuteTrajectory name="execute_descend" trajectory="{descend_traj}" />
+
+      <GripperClose name="close_gripper"
+                    gripper_group="{gripper_group}"
+                    joint_names="{gripper_joints}"
+                    close_position="{gripper_closed}" />
+
+      <!-- 4. The part is no longer where the planner thinks it is. -->
+      <RemoveCollisionObject name="drop_part_from_scene" object_id="{part_id}" />
+
+      <!-- 5. Retreat to a known joint configuration. -->
+      <PlanToJointValues name="plan_retreat"
+                         planning_group="{arm_group}"
+                         joint_names="{arm_joints}"
+                         joint_values="{home_joints}"
+                         trajectory="{retreat_traj}" />
+      <ExecuteTrajectory name="execute_retreat" trajectory="{retreat_traj}" />
+
+      <!-- 6. Confirm the arm actually settled at home. -->
+      <IsAtJointTarget name="at_home"
+                       joint_names="{arm_joints}"
+                       joint_values="{home_joints}"
+                       tolerance="{joint_tolerance}" />
+
+    </Sequence>
+  </Tree>
+</BTEng>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Read the planning scene, solve IK for a grasp pose, and move there by joints.
+
+      bteng-moveit run examples/trees/04_scene_and_ik.xml \
+                   -p examples/config/moveit_params.yaml
+
+  The Fallback at the top is the point: if the arm is already at the target
+  configuration, the whole IK-and-move branch is skipped.  A ReactiveSequence
+  is not needed here — the guard is checked once, before the work starts.
+
+  ComputeIK reads its seed from `seed_state` and writes its solution to
+  `robot_state`.  Those were the same port name in 0.1.0, which the flat XML
+  port model cannot express: one direction won and the other binding vanished.
+-->
+<BTEng format_version="1.0" main_tree_to_execute="main">
+  <Tree ID="main">
+    <Fallback name="reach_target_configuration">
+
+      <IsAtJointTarget name="already_there"
+                       joint_names="{arm_joints}"
+                       joint_values="{home_joints}"
+                       tolerance="{joint_tolerance}" />
+
+      <Sequence name="solve_and_move">
+
+        <GetPlanningScene name="read_scene"
+                          components="{scene_components}"
+                          scene="{scene}" />
+
+        <ComputeIK name="solve_ik"
+                   planning_group="{arm_group}"
+                   link_name="{eef_link}"
+                   pose="{grasp_pose}"
+                   seed_state="{seed_state}"
+                   avoid_collisions="true"
+                   timeout_sec="0.2"
+                   robot_state="{ik_solution}" />
+
+        <PlanToJointValues name="plan_home"
+                           planning_group="{arm_group}"
+                           joint_names="{arm_joints}"
+                           joint_values="{home_joints}"
+                           trajectory="{trajectory}" />
+
+        <ExecuteTrajectory name="execute" trajectory="{trajectory}" />
+
+      </Sequence>
+    </Fallback>
+  </Tree>
+</BTEng>

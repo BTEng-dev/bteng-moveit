@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Plan to a Cartesian pose, then execute the plan.
+
+      bteng-moveit run examples/trees/01_plan_and_execute.xml \
+                   -p examples/config/moveit_params.yaml
+
+  The two nodes are wired through one blackboard key: PlanToPose writes the
+  planned trajectory to {trajectory}, ExecuteTrajectory reads it back.  That
+  direction is not guessed from the XML — it comes from the node's own
+  provided_ports() via the port model seeded in load_tree().
+
+  Splitting plan from execute is the whole point of a behaviour tree here: a
+  guard, a retry, or an operator confirmation can sit between the two without
+  touching any Python.
+-->
+<BTEng format_version="1.0" main_tree_to_execute="main">
+  <Tree ID="main">
+    <Sequence name="plan_then_execute">
+
+      <IsMoveGroupReady name="move_group_up" />
+
+      <PlanToPose name="plan"
+                  pose="{grasp_pose}"
+                  planning_group="{arm_group}"
+                  link_name="{eef_link}"
+                  allowed_planning_time="5.0"
+                  trajectory="{trajectory}" />
+
+      <ExecuteTrajectory name="execute"
+                         trajectory="{trajectory}" />
+
+    </Sequence>
+  </Tree>
+</BTEng>

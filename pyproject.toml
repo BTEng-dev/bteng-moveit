@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bteng-moveit"
+version = "0.2.0"
+description = "MoveIt2 behavior tree nodes for the BTEng engine"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = ["bteng>=0.3.2", "bteng-ros2>=0.3.0", "pyyaml>=5.4"]
+authors = [{ name = "BTEng contributors", email = "mdirzpr@gmail.com" }]
+keywords = ["behavior-tree", "robotics", "ros2", "moveit2", "manipulation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage      = "https://github.com/BTEng-dev/bteng-moveit"
+Documentation = "https://github.com/BTEng-dev/bteng-moveit/blob/main/docs/README.md"
+Changelog     = "https://github.com/BTEng-dev/bteng-moveit/blob/main/docs/changelog.md"
+"Bug Tracker" = "https://github.com/BTEng-dev/bteng-moveit/issues"
+
+[project.scripts]
+bteng-moveit = "bteng_moveit.cli:main"
+
+[project.optional-dependencies]
+dev = ["build", "pytest", "twine"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bteng_moveit*"]
+exclude = ["test*"]
+
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

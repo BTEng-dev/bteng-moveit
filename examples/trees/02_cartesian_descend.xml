@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Straight-line Cartesian descent onto an object, then execute it.
+
+      bteng-moveit run examples/trees/02_cartesian_descend.xml \
+                   -p examples/config/moveit_params.yaml
+
+  min_fraction="0.95" is the safety catch: /compute_cartesian_path happily
+  returns a partial path, and executing a 40%-complete descent stops the
+  gripper in mid-air.  The node maps fraction < min_fraction to FAILURE, so the
+  Fallback below retries with a coarser interpolation step before giving up.
+
+  waypoints comes from the params file as `type: waypoints` — a list of *bare*
+  geometry_msgs/Pose, which is what GetCartesianPath.Request.waypoints is.
+-->
+<BTEng format_version="1.0" main_tree_to_execute="main">
+  <Tree ID="main">
+    <Sequence name="descend">
+
+      <Fallback name="compute_with_retry">
+        <ComputeCartesianPath name="fine"
+                              planning_group="{arm_group}"
+                              link_name="{eef_link}"
+                              waypoints="{descend_waypoints}"
+                              max_step="0.005"
+                              min_fraction="0.95"
+                              trajectory="{trajectory}"
+                              fraction="{achieved_fraction}" />
+
+        <ComputeCartesianPath name="coarse"
+                              planning_group="{arm_group}"
+                              link_name="{eef_link}"
+                              waypoints="{descend_waypoints}"
+                              max_step="0.02"
+                              min_fraction="0.9"
+                              trajectory="{trajectory}"
+                              fraction="{achieved_fraction}" />
+      </Fallback>
+
+      <ExecuteTrajectory name="execute" trajectory="{trajectory}" />
+
+    </Sequence>
+  </Tree>
+</BTEng>

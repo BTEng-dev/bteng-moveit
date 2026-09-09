@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The full pick-and-place: scene, grasp, attach, transfer, place, detach.
+
+      bteng-moveit run examples/trees/05_full_pick_place.xml \
+                   -p examples/config/moveit_params.yaml
+
+  What 03_pick_and_place.xml leaves out and this one does not:
+
+  * ClearOctomap before approaching. With a depth camera in the loop the octomap
+    holds the part the gripper is about to grasp; planning into it fails for
+    reasons invisible in RViz.
+  * AttachObject after the grasp. Until the part is attached to the TCP link,
+    MoveIt plans the transfer as if the gripper were empty AND the part were
+    still on the table — so the retreat either fails or drives the part through
+    the shelf. touch_links lets the fingers touch it without that counting as a
+    collision.
+  * GetJointState before IK, so the seed is where the arm is rather than where
+    the params file guessed. It fails on the tick that creates its subscription,
+    hence the Retry.
+  * DetachObject after release, then RemoveCollisionObject, because the part has
+    physically moved and the scene copy is now a lie.
+
+  Every value still comes from the params file. This file is only the order.
+-->
+<BTEng format_version="1.0" main_tree_to_execute="main">
+  <Tree ID="main">
+    <Sequence name="full_pick_place">
+
+      <IsMoveGroupReady name="move_group_up" />
+
+      <!-- 1. Scene -->
+      <AddCollisionObject name="add_table" collision_object="{table}" />
+      <AddCollisionObject name="add_part"  collision_object="{part}" />
+      <ClearOctomap name="clear_stale_depth_data" />
+
+      <!-- 2. Approach with the gripper open -->
+      <GripperOpen name="open_gripper"
+                   gripper_group="{gripper_group}"
+                   joint_names="{gripper_joints}"
+                   open_position="{gripper_open}" />
+
+      <PlanToPose name="plan_approach"
+                  pose="{approach_pose}"
+                  planning_group="{arm_group}"
+                  link_name="{eef_link}"
+                  trajectory="{approach_traj}" />
+      <ExecuteTrajectory name="execute_approach" trajectory="{approach_traj}" />
+
+      <!-- 3. Descend, grasp, attach -->
+      <ComputeCartesianPath name="plan_descend"
+                            planning_group="{arm_group}"
+                            link_name="{eef_link}"
+                            waypoints="{descend_waypoints}"
+                            max_step="0.005"
+                            min_fraction="0.95"
+                            trajectory="{descend_traj}"
+                            fraction="{achieved_fraction}" />
+      <ExecuteTrajectory name="execute_descend" trajectory="{descend_traj}" />
+
+      <GripperClose name="close_gripper"
+                    gripper_group="{gripper_group}"
+                    joint_names="{gripper_joints}"
+                    close_position="{gripper_closed}" />
+
+      <AttachObject name="attach_part"
+                    object_id="{part_id}"
+                    link_name="{eef_link}"
+                    touch_links="{gripper_touch_links}" />
+
+      <!-- 4. Transfer.  Seed IK from where the arm actually is. -->
+      <Retry name="sample_joint_state" num_attempts="5">
+        <GetJointState name="read_joints"
+                       joint_state="{current_joint_state}"
+                       robot_state="{live_seed_state}" />
+      </Retry>
+
+      <ComputeIK name="solve_place_ik"
+                 planning_group="{arm_group}"
+                 link_name="{eef_link}"
+                 pose="{place_pose}"
+                 seed_state="{live_seed_state}"
+                 timeout_sec="0.2"
+                 robot_state="{place_solution}" />
+
+      <PlanToPose name="plan_place"
+                  pose="{place_pose}"
+                  planning_group="{arm_group}"
+                  link_name="{eef_link}"
+                  trajectory="{place_traj}" />
+      <ExecuteTrajectory name="execute_place" trajectory="{place_traj}" />
+
+      <!-- 5. Release, detach, and stop lying about where the part is -->
+      <GripperOpen name="release"
+                   gripper_group="{gripper_group}"
+                   joint_names="{gripper_joints}"
+                   open_position="{gripper_open}" />
+
+      <DetachObject name="detach_part"
+                    object_id="{part_id}"
+                    link_name="{eef_link}" />
+      <RemoveCollisionObject name="forget_part" object_id="{part_id}" />
+
+      <!-- 6. Home, and confirm it -->
+      <PlanToJointValues name="plan_home"
+                         planning_group="{arm_group}"
+                         joint_names="{arm_joints}"
+                         joint_values="{home_joints}"
+                         trajectory="{home_traj}" />
+      <ExecuteTrajectory name="execute_home" trajectory="{home_traj}" />
+
+      <IsAtJointTarget name="at_home"
+                       joint_names="{arm_joints}"
+                       joint_values="{home_joints}"
+                       tolerance="{joint_tolerance}" />
+
+    </Sequence>
+  </Tree>
+</BTEng>

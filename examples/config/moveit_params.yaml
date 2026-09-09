@@ -1,0 +1,178 @@
+# Params for the example trees in examples/trees/.
+#
+#     bteng-moveit run examples/trees/ -p examples/config/moveit_params.yaml --dry-run
+#
+# Everything a *port* consumes lives here.  A BT XML attribute is a string, and
+# PlanToPose wants a geometry_msgs/PoseStamped, ComputeCartesianPath a list of
+# geometry_msgs/Pose, AddCollisionObject a moveit_msgs/CollisionObject — none of
+# which an attribute can express.  So they are built here and seeded into the
+# blackboard before the tree ticks; the XML only says "{grasp_pose}".
+#
+# header.stamp is left at zero throughout: MoveIt and tf2 read a zero stamp as
+# "latest available", which is what a static target wants.
+
+ros:
+  namespace: ""            # "" or /robot1; --namespace on the CLI overrides this
+  node_name: bteng_moveit
+  use_sim_time: false
+
+blackboard:
+
+  # ── Groups, links and joints ────────────────────────────────────────────────
+  # Plain scalars and lists pass through untouched.
+  arm_group: manipulator
+  gripper_group: hand
+  eef_link: tool0
+
+  arm_joints:
+    - shoulder_pan_joint
+    - shoulder_lift_joint
+    - elbow_joint
+    - wrist_1_joint
+    - wrist_2_joint
+    - wrist_3_joint
+
+  home_joints: [0.0, -1.57, 1.57, -1.57, -1.57, 0.0]
+  joint_tolerance: 0.01
+
+  gripper_joints: [finger_joint]
+  gripper_open: 0.04
+  gripper_closed: 0.0
+
+  # Links allowed to touch an attached object without it counting as a
+  # collision.  Omit these and the grasp itself reads as a collision.
+  gripper_touch_links:
+    - left_inner_finger
+    - right_inner_finger
+    - left_inner_finger_pad
+    - right_inner_finger_pad
+
+  # ── Named targets ───────────────────────────────────────────────────────────
+  # MoveGroup.action has no named-target field: the name -> joint mapping lives
+  # in the SRDF and is resolved client-side by the C++ MoveGroupInterface.  So
+  # named targets are spelled out here and referenced as ordinary keys, e.g.
+  # <PlanToJointValues joint_values="{home_joints}"/>.
+  ready_joints: [0.0, -1.20, 1.40, -1.75, -1.57, 0.0]
+
+  # ── Poses ───────────────────────────────────────────────────────────────────
+  # Orientation may be given as roll/pitch/yaw, as rpy: [r, p, y], or as
+  # explicit qx/qy/qz/qw — one of the three, never a mixture.  RPY is ZYX
+  # intrinsic, the same convention as tf_transformations.quaternion_from_euler.
+
+  approach_pose:
+    type: pose
+    frame_id: world
+    x: 0.40
+    y: 0.10
+    z: 0.35
+    rpy: [3.14159, 0.0, 0.0]   # tool pointing straight down
+
+  grasp_pose:
+    type: pose
+    frame_id: world
+    x: 0.40
+    y: 0.10
+    z: 0.16
+    roll: 3.14159
+    pitch: 0.0
+    yaw: 0.0
+
+  place_pose:
+    type: pose
+    frame_id: world
+    x: 0.10
+    y: -0.40
+    z: 0.20
+    qx: 1.0
+    qy: 0.0
+    qz: 0.0
+    qw: 0.0                     # must be normalized; an unnormalized one is rejected
+
+  # ── Cartesian waypoints ─────────────────────────────────────────────────────
+  # type: waypoints builds *bare* geometry_msgs/Pose, which is what
+  # GetCartesianPath.Request.waypoints is.  type: poses would build PoseStamped
+  # and fail during serialization.  Entries are [x, y, z] or
+  # [x, y, z, roll, pitch, yaw], or a full mapping.
+
+  descend_waypoints:
+    type: waypoints
+    frame_id: world
+    points:
+      - [0.40, 0.10, 0.30, 3.14159, 0.0, 0.0]
+      - [0.40, 0.10, 0.22, 3.14159, 0.0, 0.0]
+      - [0.40, 0.10, 0.16, 3.14159, 0.0, 0.0]
+
+  # A stamped list, for anything that wants PoseStamped.
+  inspection_poses:
+    type: poses
+    frame_id: world
+    points:
+      - [0.35, 0.00, 0.40, 3.14159, 0.0, 0.0]
+      - {x: 0.35, y: 0.20, z: 0.40, rpy: [3.14159, 0.0, 0.785]}
+
+  # ── Robot state (IK seed) ───────────────────────────────────────────────────
+  seed_state:
+    type: robot_state
+    joint_state:
+      name:
+        - shoulder_pan_joint
+        - shoulder_lift_joint
+        - elbow_joint
+        - wrist_1_joint
+        - wrist_2_joint
+        - wrist_3_joint
+      position: [0.0, -1.57, 1.57, -1.57, -1.57, 0.0]
+    is_diff: false
+
+  current_joints:
+    type: joint_state
+    name: [finger_joint]
+    position: [0.04]
+
+  # ── Collision geometry ──────────────────────────────────────────────────────
+  # Dimension order is checked per shape: box [x, y, z], sphere [radius],
+  # cylinder and cone [height, radius].  Swapping height and radius on a
+  # cylinder is the classic MoveIt bug and is rejected here, not at runtime.
+
+  table:
+    type: collision_object
+    id: table
+    frame_id: world
+    operation: add
+    primitives:
+      - shape: box
+        size: [0.80, 1.20, 0.04]
+        pose: {x: 0.50, y: 0.0, z: 0.10}
+
+  part:
+    type: collision_object       # single-shape shorthand
+    id: part
+    frame_id: world
+    shape: cylinder
+    size: [0.12, 0.03]           # [height, radius]
+    pose: {x: 0.40, y: 0.10, z: 0.18}
+
+  part_id: part
+
+  # A whole scene in one value, for ApplyPlanningScene.  is_diff defaults to
+  # true: this describes what the app adds, not the entire world.
+  static_scene:
+    type: planning_scene
+    is_diff: true
+    objects:
+      - id: table
+        frame_id: world
+        shape: box
+        size: [0.80, 1.20, 0.04]
+        pose: {x: 0.50, y: 0.0, z: 0.10}
+      - id: back_wall
+        frame_id: world
+        shape: box
+        size: [0.05, 1.20, 0.80]
+        pose: {x: 0.90, y: 0.0, z: 0.50}
+
+  # ── Misc ────────────────────────────────────────────────────────────────────
+  scene_components: 1023         # every PlanningSceneComponents bit
+  plan_timeout:
+    type: duration
+    seconds: 5.0

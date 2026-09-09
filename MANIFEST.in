@@ -1,0 +1,14 @@
+include LICENSE
+include README.md
+
+recursive-include bteng_moveit *.py
+
+# The example trees and params file are what the README tells a new user to run,
+# and they are load-bearing test fixtures besides -- an sdist without them ships
+# a package whose own documented quickstart does not work.
+recursive-include examples *.xml *.yaml
+
+exclude CLAUDE.md
+recursive-exclude test *
+recursive-exclude docs *
+recursive-exclude .github *
